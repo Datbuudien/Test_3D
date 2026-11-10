@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc49cd4a9fbc4ea419b041fd0b2ad8bc, type: 3}
+  m_Name: CHR_DEF_GreenSwat
+  m_EditorClassIdentifier: Assembly-CSharp::CharacterDefinition
+  id: green_swat
+  displayName: Green SWAT
+  visualPrefab: {fileID: -2111072873179617345, guid: b39dea6c9d5ccd145a87214ff3ecd06a, type: 3}
+  previewPrefab: {fileID: 790312190686040037, guid: b39dea6c9d5ccd145a87214ff3ecd06a, type: 3}
+  previewDistance: 3.6
