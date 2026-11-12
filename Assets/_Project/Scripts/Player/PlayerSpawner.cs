@@ -33,7 +33,10 @@ public class PlayerSpawner : MonoBehaviour
         }
 #endif
 
-        weaponHolder.Rebuild(visual, weapons, FindWeaponSlot(scenario.weaponId));
+        // Kich ban chi mang dung vu khi da chon; khong tim thay id -> giu ca bo de van choi duoc
+        int weaponSlot = FindWeaponSlot(scenario.weaponId);
+        WeaponDefinition[] loadout = weaponSlot >= 0 ? new[] { weapons[weaponSlot] } : weapons;
+        weaponHolder.Rebuild(visual, loadout, 0);
         if (visual != currentVisual && currentVisual != null)
         {
             Destroy(currentVisual.gameObject);
@@ -62,12 +65,6 @@ public class PlayerSpawner : MonoBehaviour
 
     private int FindWeaponSlot(string weaponId)
     {
-        if (weapons == null)
-        {
-            return 0;
-        }
-
-        int slot = Array.FindIndex(weapons, weapon => weapon != null && weapon.Id == weaponId);
-        return slot >= 0 ? slot : 0;
+        return weapons == null ? -1 : Array.FindIndex(weapons, weapon => weapon != null && weapon.Id == weaponId);
     }
 }

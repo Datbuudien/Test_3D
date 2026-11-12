@@ -172,6 +172,50 @@ public class ScenarioRepositoryTests
     }
 
     [Test]
+    public void SaveAsync_ThroughInterface_SavesFile()
+    {
+        IScenarioStore store = repository;
+
+        SaveResult result = store.SaveAsync(CreateData(VALID_NAME), false).Result;
+
+        Assert.AreEqual(SaveStatus.Success, result.Status);
+        Assert.IsTrue(File.Exists(result.FilePath));
+    }
+
+    [Test]
+    public void LoadAllAsync_ThroughInterface_ReturnsSavedScenarios()
+    {
+        IScenarioStore store = repository;
+        store.SaveAsync(CreateData(VALID_NAME), false).Wait();
+
+        Assert.AreEqual(1, store.LoadAllAsync().Result.Count);
+    }
+
+    [Test]
+    public void TryGetBrowseUrl_LocalStore_ReturnsFileUrlAndCreatesDirectory()
+    {
+        Assert.IsTrue(repository.TryGetBrowseUrl(out string url));
+        StringAssert.StartsWith(ScenarioRepository.FILE_URL_PREFIX, url);
+        Assert.IsTrue(Directory.Exists(rootDirectory));
+    }
+
+    [Test]
+    public void LocalScenarioStoreProvider_CreateStore_ReturnsFileStoreInDefaultDirectory()
+    {
+        LocalScenarioStoreProvider provider = UnityEngine.ScriptableObject.CreateInstance<LocalScenarioStoreProvider>();
+        try
+        {
+            IScenarioStore store = provider.CreateStore();
+            Assert.IsInstanceOf<ScenarioRepository>(store);
+            Assert.AreEqual(ScenarioRepository.DefaultDirectory, ((ScenarioRepository)store).RootDirectory);
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(provider);
+        }
+    }
+
+    [Test]
     public void Create_GivenDate_FormatsInvariantIso()
     {
         ScenarioData data = CreateData(VALID_NAME, new DateTime(2026, 11, 10, 16, 5, 9));

@@ -16,6 +16,7 @@ public class WeaponHolder : MonoBehaviour
     public event Action<WeaponDefinition, AbstractWeapon> WeaponEquipped;
 
     public int CurrentSlot { get; private set; } = NO_SLOT;
+    public int SlotCount => instances.Length;
     public bool IsSwitchLocked { get; private set; }
     public WeaponDefinition CurrentDefinition => IsValidSlot(CurrentSlot) ? loadout[CurrentSlot] : null;
     public AbstractWeapon CurrentInstance => IsValidSlot(CurrentSlot) ? instances[CurrentSlot] : null;

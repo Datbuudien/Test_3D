@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 using UnityEngine;
 
-public class ScenarioRepository
+public class ScenarioRepository : IScenarioStore
 {
     public const string FOLDER_NAME = "Scenarios";
+    public const string FILE_URL_PREFIX = "file:///";
     public const string FILE_EXTENSION = ".json";
     public const int MAX_FILE_NAME_LENGTH = 64;
 
@@ -78,6 +80,23 @@ public class ScenarioRepository
     {
         string filePath = GetFilePath(scenarioName);
         return filePath.Length > 0 && File.Exists(filePath);
+    }
+
+    // File local xong ngay -> tra Task da hoan thanh; store server se await that su
+    public Task<SaveResult> SaveAsync(ScenarioData data, bool overwrite)
+    {
+        return Task.FromResult(Save(data, overwrite));
+    }
+
+    public Task<IReadOnlyList<ScenarioData>> LoadAllAsync()
+    {
+        return Task.FromResult<IReadOnlyList<ScenarioData>>(LoadAll());
+    }
+
+    public bool TryGetBrowseUrl(out string url)
+    {
+        url = TryEnsureRootDirectory() ? FILE_URL_PREFIX + RootDirectory.Replace('\\', '/') : string.Empty;
+        return url.Length > 0;
     }
 
     public bool TryEnsureRootDirectory()

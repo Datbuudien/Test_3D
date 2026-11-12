@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -8,14 +9,16 @@ using UnityEngine.UI;
 public class ScenarioSetupPanel : MonoBehaviour
 {
     private const string DEFAULT_SCENARIO_NAME = "Untitled";
-    private const string FILE_URL_PREFIX = "file:///";
     private const string MESSAGE_MISSING_CATALOG = "No character or weapon definitions assigned.";
+    private const string MESSAGE_MISSING_STORE = "No scenario store assigned - saving is disabled.";
+    private const string MESSAGE_SAVING = "Saving...";
     private const string MESSAGE_EMPTY_NAME = "Please enter a scenario name.";
     private const string MESSAGE_ALREADY_EXISTS = "Scenario '{0}' already exists - press Save again within {1:0} s to overwrite.";
     private const string MESSAGE_IO_ERROR = "Could not save scenario: {0}";
     private const string MESSAGE_SAVED = "Saved: {0}";
-    private const string MESSAGE_FOLDER_ERROR = "Could not open folder: {0}";
+    private const string MESSAGE_BROWSE_UNAVAILABLE = "This scenario store has no folder to open.";
 
+    [SerializeField] private AbstractScenarioStoreProvider storeProvider;
     [SerializeField] private CharacterDefinition[] characters;
     [SerializeField] private WeaponDefinition[] weapons;
     [SerializeField] private PreviewStage characterStage;
@@ -37,7 +40,8 @@ public class ScenarioSetupPanel : MonoBehaviour
     [SerializeField] private Color warningColor = new Color(1f, 0.8f, 0.3f);
     [SerializeField] private Color errorColor = new Color(1f, 0.4f, 0.4f);
 
-    private ScenarioRepository repository;
+    private IScenarioStore store;
+    private bool isSaving;
     private int characterIndex;
     private int weaponIndex;
     private string pendingOverwriteName;
@@ -49,12 +53,13 @@ public class ScenarioSetupPanel : MonoBehaviour
 
     void Awake()
     {
-        repository = new ScenarioRepository(ScenarioRepository.DefaultDirectory);
+        // UI chi biet IScenarioStore; noi luu cu the do asset provider quyet dinh
+        store = storeProvider != null ? storeProvider.CreateStore() : null;
         AddListener(characterPrevButton, OnCharacterPrevClicked);
         AddListener(characterNextButton, OnCharacterNextClicked);
         AddListener(weaponPrevButton, OnWeaponPrevClicked);
         AddListener(weaponNextButton, OnWeaponNextClicked);
-        AddListener(saveButton, Save);
+        AddListener(saveButton, OnSaveClicked);
         AddListener(openFolderButton, OpenFolder);
         AddListener(startButton, StartGameplay);
         if (scenarioNameInput != null)
@@ -75,6 +80,12 @@ public class ScenarioSetupPanel : MonoBehaviour
 
         RefreshCharacter();
         RefreshWeapon();
+        if (store == null)
+        {
+            ShowStatus(MESSAGE_MISSING_STORE, errorColor);
+            SetInteractable(saveButton, false);
+            SetInteractable(openFolderButton, false);
+        }
     }
 
     void OnDestroy()
@@ -92,18 +103,63 @@ public class ScenarioSetupPanel : MonoBehaviour
         }
     }
 
-    public void Save()
+    public async Task SaveAsync()
     {
-        if (!IsCatalogValid())
+        if (!IsCatalogValid() || store == null || isSaving)
         {
             return;
         }
 
         string rawName = scenarioNameInput != null ? scenarioNameInput.text : string.Empty;
         bool overwrite = IsOverwriteConfirmed(rawName);
-        SaveResult result = repository.Save(CreateScenarioData(rawName), overwrite);
         pendingOverwriteName = null;
+        SaveResult result;
 
+        isSaving = true;
+        SetInteractable(saveButton, false);
+        ShowStatus(MESSAGE_SAVING, warningColor);
+        try
+        {
+            result = await store.SaveAsync(CreateScenarioData(rawName), overwrite);
+        }
+        catch (Exception exception)
+        {
+            // Store server co the nem loi mang -> bao len UI thay vi nuot mat
+            result = new SaveResult(SaveStatus.IoError, string.Empty, exception.Message);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+
+        // Panel co the da bi huy trong luc cho (doi scene)
+        if (this == null)
+        {
+            return;
+        }
+
+        SetInteractable(saveButton, true);
+        ShowSaveResult(result, rawName);
+    }
+
+    public void OpenFolder()
+    {
+        if (store == null)
+        {
+            return;
+        }
+
+        if (store.TryGetBrowseUrl(out string url))
+        {
+            Application.OpenURL(url);
+            return;
+        }
+
+        ShowStatus(MESSAGE_BROWSE_UNAVAILABLE, errorColor);
+    }
+
+    private void ShowSaveResult(SaveResult result, string rawName)
+    {
         switch (result.Status)
         {
             case SaveStatus.Success:
@@ -123,15 +179,10 @@ public class ScenarioSetupPanel : MonoBehaviour
         }
     }
 
-    public void OpenFolder()
+    // async void chi o day: dich cua Button/InputField can UnityAction tra void
+    private async void OnSaveClicked()
     {
-        if (!repository.TryEnsureRootDirectory())
-        {
-            ShowStatus(string.Format(MESSAGE_FOLDER_ERROR, repository.RootDirectory), errorColor);
-            return;
-        }
-
-        Application.OpenURL(FILE_URL_PREFIX + repository.RootDirectory.Replace('\\', '/'));
+        await SaveAsync();
     }
 
     public void StartGameplay()
@@ -193,7 +244,7 @@ public class ScenarioSetupPanel : MonoBehaviour
 
     private void OnScenarioNameSubmitted(string submittedName)
     {
-        Save();
+        OnSaveClicked();
     }
 
     private void RefreshCharacter()

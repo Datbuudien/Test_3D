@@ -10,10 +10,12 @@ using UnityEngine.UI;
 internal static class GameplaySceneWiring
 {
     private const string LOG_PREFIX = "[GameplaySceneWiring]";
-    private const float TRAJECTORY_WIDTH = 0.04f;
-    private static readonly Vector3 LANDING_MARKER_SCALE = new Vector3(0.6f, 0.005f, 0.6f);
-    private static readonly Color TRAJECTORY_START_COLOR = new Color(1f, 0.85f, 0.3f, 0.9f);
-    private static readonly Color TRAJECTORY_END_COLOR = new Color(1f, 0.45f, 0.1f, 0.4f);
+    private const string LANDING_MARKER_MATERIAL_PATH = "Assets/_Project/VFX/M_FX_LandingMarker.mat";
+    private const float TRAJECTORY_WIDTH = 0.08f;
+    private static readonly Vector3 LANDING_MARKER_SCALE = new Vector3(0.9f, 0.01f, 0.9f);
+    private static readonly Color TRAJECTORY_START_COLOR = new Color(0.85f, 1f, 0.1f, 1f);
+    private static readonly Color TRAJECTORY_END_COLOR = new Color(1f, 0.1f, 0.15f, 1f);
+    private static readonly Color LANDING_MARKER_COLOR = new Color(1f, 0.1f, 0.15f, 0.85f);
     private static readonly Color HUD_PANEL_COLOR = new Color(0f, 0f, 0f, 0.45f);
     private static readonly Color CHARGE_BACKGROUND_COLOR = new Color(0f, 0f, 0f, 0.6f);
     private static readonly Color CHARGE_FILL_COLOR = new Color(1f, 0.6f, 0.15f);
@@ -105,7 +107,7 @@ internal static class GameplaySceneWiring
         marker.transform.SetParent(trajectory.transform, false);
         marker.transform.localScale = LANDING_MARKER_SCALE;
         MeshRenderer markerRenderer = marker.GetComponent<MeshRenderer>();
-        markerRenderer.sharedMaterial = material;
+        markerRenderer.sharedMaterial = CreateMarkerMaterial();
         markerRenderer.shadowCastingMode = ShadowCastingMode.Off;
         marker.SetActive(false);
 
@@ -117,6 +119,16 @@ internal static class GameplaySceneWiring
         serialized.FindProperty("landingMarker").objectReferenceValue = marker.transform;
         serialized.FindProperty("collisionMask").intValue = LayerMask.GetMask(Constants.LAYER_GROUND);
         serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    // Mesh khong co vertex color nhu LineRenderer -> mau dat thang tren material
+    private static Material CreateMarkerMaterial()
+    {
+        Material material = ExplosionPrefabBuilder.CreateSolidMaterial(LANDING_MARKER_MATERIAL_PATH);
+        material.SetColor("_BaseColor", LANDING_MARKER_COLOR);
+        EditorUtility.SetDirty(material);
+        AssetDatabase.SaveAssets();
+        return material;
     }
 
     private static void CreateHud(WeaponHolder weaponHolder, GrenadeThrower thrower)

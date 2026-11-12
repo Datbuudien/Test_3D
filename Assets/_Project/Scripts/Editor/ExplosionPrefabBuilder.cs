@@ -280,6 +280,15 @@ public static class ExplosionPrefabBuilder
         return CreateParticleMaterial(path, BLEND_ADDITIVE);
     }
 
+    // Mau dac, khong texture: mau lay tu vertex color (LineRenderer gradient) -> net, khong bi chim tren nen sang
+    internal static Material CreateSolidMaterial(string path)
+    {
+        Material material = CreateParticleMaterial(path, BLEND_ALPHA);
+        material.SetTexture("_BaseMap", null);
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
     private static Material CreateParticleMaterial(string path, float blendMode)
     {
         Material material = LoadOrCreateMaterial(path, PARTICLE_SHADER);

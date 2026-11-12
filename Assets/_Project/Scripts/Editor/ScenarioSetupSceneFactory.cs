@@ -34,7 +34,7 @@ internal static class ScenarioSetupSceneFactory
     }
 
     internal static void Build(string scenePath, string[] characterPaths, string[] weaponPaths,
-        string characterTexturePath, string weaponTexturePath)
+        string characterTexturePath, string weaponTexturePath, string storeProviderPath)
     {
         Scene scene = ProjectSceneBuilder.CreateEmptyScene();
         // Nap asset SAU khi tao scene (KI-19)
@@ -42,6 +42,7 @@ internal static class ScenarioSetupSceneFactory
         WeaponDefinition[] weapons = ProjectSceneBuilder.LoadAssetsAtPaths<WeaponDefinition>(weaponPaths);
         RenderTexture characterTexture = AssetDatabase.LoadAssetAtPath<RenderTexture>(characterTexturePath);
         RenderTexture weaponTexture = AssetDatabase.LoadAssetAtPath<RenderTexture>(weaponTexturePath);
+        AbstractScenarioStoreProvider storeProvider = AssetDatabase.LoadAssetAtPath<AbstractScenarioStoreProvider>(storeProviderPath);
         CreateMainCamera();
         CreateLighting();
         PreviewStage characterStage = ProjectSceneBuilder.CreateStage("CharacterStage", true, characterTexture);
@@ -71,6 +72,7 @@ internal static class ScenarioSetupSceneFactory
 
         ScenarioSetupPanel panel = canvas.gameObject.AddComponent<ScenarioSetupPanel>();
         SerializedObject serialized = new SerializedObject(panel);
+        serialized.FindProperty("storeProvider").objectReferenceValue = storeProvider;
         AssignArray(serialized.FindProperty("characters"), characters);
         AssignArray(serialized.FindProperty("weapons"), weapons);
         serialized.FindProperty("characterStage").objectReferenceValue = characterStage;

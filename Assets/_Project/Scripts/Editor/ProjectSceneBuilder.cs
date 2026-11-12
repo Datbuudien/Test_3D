@@ -27,6 +27,7 @@ public static class ProjectSceneBuilder
     private const string WEAPON_RT_PATH = TEXTURE_FOLDER + "/RT_WeaponPreview.renderTexture";
     private const string AK47_DEFINITION_PATH = DATA_FOLDER + "/WPN_AK47.asset";
     private const string GRENADE_DEFINITION_PATH = DATA_FOLDER + "/WPN_Grenade.asset";
+    private const string LOCAL_STORE_PROVIDER_PATH = DATA_FOLDER + "/ScenarioStore_Local.asset";
 
     private const int RENDER_TEXTURE_SIZE = 1024;
     private const int RENDER_TEXTURE_DEPTH = 24;
@@ -71,13 +72,14 @@ public static class ProjectSceneBuilder
         EnsureRenderTexture(CHARACTER_RT_PATH);
         EnsureRenderTexture(WEAPON_RT_PATH);
         LoadTrajectoryMaterial();
+        string storeProviderPath = EnsureStoreProvider();
         AssetDatabase.SaveAssets();
 
         // NewScene/OpenScene (Single) do asset khong con tham chieu -> bien C# giu asset cu thanh null khi gan.
         // Chi truyen duong dan, factory nap lai SAU khi scene da mo.
         string[] characterPaths = ToAssetPaths(characters);
         string[] weaponPaths = ToAssetPaths(weapons);
-        ScenarioSetupSceneFactory.Build(SETUP_SCENE_PATH, characterPaths, weaponPaths, CHARACTER_RT_PATH, WEAPON_RT_PATH);
+        ScenarioSetupSceneFactory.Build(SETUP_SCENE_PATH, characterPaths, weaponPaths, CHARACTER_RT_PATH, WEAPON_RT_PATH, storeProviderPath);
         bool gameplayWired = GameplaySceneWiring.Wire(GAMEPLAY_SCENE_PATH, characterPaths, weaponPaths, TRAJECTORY_MATERIAL_PATH);
         UpdateBuildSettings();
         EditorSceneManager.OpenScene(SETUP_SCENE_PATH, OpenSceneMode.Single);
@@ -171,6 +173,23 @@ public static class ProjectSceneBuilder
         }
     }
 
+    // Da co provider nao (local/server nguoi dung tao) thi dung lai, khong thi tao ban luu file local
+    private static string EnsureStoreProvider()
+    {
+        // Loc theo kieu bang code: filter "t:LopCha" cua FindAssets khong chac bat duoc asset lop con
+        foreach (string guid in AssetDatabase.FindAssets("t:ScriptableObject", new[] { DATA_FOLDER }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (AssetDatabase.LoadAssetAtPath<ScriptableObject>(path) is AbstractScenarioStoreProvider)
+            {
+                return path;
+            }
+        }
+
+        AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<LocalScenarioStoreProvider>(), LOCAL_STORE_PROVIDER_PATH);
+        return LOCAL_STORE_PROVIDER_PATH;
+    }
+
     private static RenderTexture EnsureRenderTexture(string path)
     {
         RenderTexture texture = AssetDatabase.LoadAssetAtPath<RenderTexture>(path);
@@ -184,10 +203,10 @@ public static class ProjectSceneBuilder
         return texture;
     }
 
+    // Luon cap nhat thong so de material cu (additive mo) duoc doi sang mau dac
     private static Material LoadTrajectoryMaterial()
     {
-        Material material = AssetDatabase.LoadAssetAtPath<Material>(TRAJECTORY_MATERIAL_PATH);
-        return material != null ? material : ExplosionPrefabBuilder.CreateAdditiveMaterial(TRAJECTORY_MATERIAL_PATH);
+        return ExplosionPrefabBuilder.CreateSolidMaterial(TRAJECTORY_MATERIAL_PATH);
     }
 
     private static void UpdateBuildSettings()
