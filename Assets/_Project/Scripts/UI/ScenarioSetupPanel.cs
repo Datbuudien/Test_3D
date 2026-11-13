@@ -3,7 +3,6 @@ using System.Collections;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class ScenarioSetupPanel : MonoBehaviour
@@ -17,6 +16,15 @@ public class ScenarioSetupPanel : MonoBehaviour
     private const string MESSAGE_IO_ERROR = "Could not save scenario: {0}";
     private const string MESSAGE_SAVED = "Saved: {0}";
     private const string MESSAGE_BROWSE_UNAVAILABLE = "This scenario store has no folder to open.";
+    private const string MESSAGE_INVALID_ADDRESS = "Enter a valid IPv4 address (e.g. 127.0.0.1 or 192.168.1.20).";
+    private const string MESSAGE_INVALID_PORT = "Enter a valid port (1-65535).";
+    private const string MESSAGE_NO_SESSION = "Network unavailable - press Play from the Bootstrap scene.";
+    private const string MESSAGE_CONNECTING = "Connecting...";
+    private const string MESSAGE_CONNECTED = "Connected.";
+    private const string MESSAGE_FAILED = "Connection failed.";
+    private const string MESSAGE_DISCONNECTED = "Disconnected from the session.";
+    private const string MESSAGE_HOST_STOPPED = "The host has left the session.";
+    private const string MESSAGE_LAN_ADDRESS = "This PC's LAN IP: {0} - the other machine enters it to Join.";
 
     [SerializeField] private AbstractScenarioStoreProvider storeProvider;
     [SerializeField] private CharacterDefinition[] characters;
@@ -33,19 +41,26 @@ public class ScenarioSetupPanel : MonoBehaviour
     [SerializeField] private Button weaponNextButton;
     [SerializeField] private Button saveButton;
     [SerializeField] private Button openFolderButton;
-    [SerializeField] private Button startButton;
+    [SerializeField] private TMP_InputField addressInput;
+    [SerializeField] private TMP_InputField portInput;
+    [SerializeField] private Button hostButton;
+    [SerializeField] private Button joinButton;
+    [SerializeField] private TMP_Text connectionStatusText;
     [SerializeField] private float statusDuration = 4f;
     [SerializeField] private float overwriteConfirmWindow = 3f;
     [SerializeField] private Color successColor = new Color(0.45f, 0.9f, 0.5f);
     [SerializeField] private Color warningColor = new Color(1f, 0.8f, 0.3f);
     [SerializeField] private Color errorColor = new Color(1f, 0.4f, 0.4f);
+    [SerializeField] private Color infoColor = new Color(0.7f, 0.78f, 0.9f);
 
     private IScenarioStore store;
+    private NetworkSession session;
     private bool isSaving;
     private int characterIndex;
     private int weaponIndex;
     private string pendingOverwriteName;
     private float pendingOverwriteTime;
+    private string lanAddressMessage = string.Empty;
     private Coroutine statusRoutine;
 
     public CharacterDefinition SelectedCharacter => IsCatalogValid() ? characters[characterIndex] : null;
@@ -61,20 +76,46 @@ public class ScenarioSetupPanel : MonoBehaviour
         AddListener(weaponNextButton, OnWeaponNextClicked);
         AddListener(saveButton, OnSaveClicked);
         AddListener(openFolderButton, OpenFolder);
-        AddListener(startButton, StartGameplay);
+        AddListener(hostButton, HostSession);
+        AddListener(joinButton, JoinSession);
         if (scenarioNameInput != null)
         {
             scenarioNameInput.onSubmit.AddListener(OnScenarioNameSubmitted);
         }
     }
 
+    // NetworkSession song o scene Bootstrap (DontDestroyOnLoad) -> lay qua Instance, khong gan Inspector duoc
+    void OnEnable()
+    {
+        session = NetworkSession.Instance;
+        if (session != null)
+        {
+            session.StatusChanged += OnConnectionStatusChanged;
+        }
+    }
+
+    void OnDisable()
+    {
+        if (session != null)
+        {
+            session.StatusChanged -= OnConnectionStatusChanged;
+        }
+
+        session = null;
+    }
+
     void Start()
     {
+        LoadLastEndpoint();
+        // Doc 1 lan: liet ke card mang ton thoi gian, khong goi moi lan doi trang thai
+        string lanAddresses = LocalNetworkInfo.GetLanIPv4Addresses();
+        lanAddressMessage = lanAddresses.Length > 0 ? string.Format(MESSAGE_LAN_ADDRESS, lanAddresses) : string.Empty;
         if (!IsCatalogValid())
         {
             ShowStatus(MESSAGE_MISSING_CATALOG, errorColor);
             SetInteractable(saveButton, false);
-            SetInteractable(startButton, false);
+            SetInteractable(hostButton, false);
+            SetInteractable(joinButton, false);
             return;
         }
 
@@ -86,6 +127,9 @@ public class ScenarioSetupPanel : MonoBehaviour
             SetInteractable(saveButton, false);
             SetInteractable(openFolderButton, false);
         }
+
+        // Sau cung: quay ve tu phien bi ngat -> toast loi ket noi khong bi thong bao khac de len
+        RefreshConnection();
     }
 
     void OnDestroy()
@@ -96,7 +140,8 @@ public class ScenarioSetupPanel : MonoBehaviour
         RemoveListeners(weaponNextButton);
         RemoveListeners(saveButton);
         RemoveListeners(openFolderButton);
-        RemoveListeners(startButton);
+        RemoveListeners(hostButton);
+        RemoveListeners(joinButton);
         if (scenarioNameInput != null)
         {
             scenarioNameInput.onSubmit.RemoveListener(OnScenarioNameSubmitted);
@@ -110,7 +155,7 @@ public class ScenarioSetupPanel : MonoBehaviour
             return;
         }
 
-        string rawName = scenarioNameInput != null ? scenarioNameInput.text : string.Empty;
+        string rawName = ReadText(scenarioNameInput);
         bool overwrite = IsOverwriteConfirmed(rawName);
         pendingOverwriteName = null;
         SaveResult result;
@@ -185,17 +230,163 @@ public class ScenarioSetupPanel : MonoBehaviour
         await SaveAsync();
     }
 
-    public void StartGameplay()
+    public void HostSession()
     {
-        if (!IsCatalogValid())
+        if (!CanStartSession() || !TryReadPort(out ushort port))
         {
             return;
         }
 
-        string rawName = scenarioNameInput != null ? scenarioNameInput.text.Trim() : string.Empty;
+        SaveLastEndpoint(ReadText(addressInput), port);
+        session.StartHost(PrepareSessionPayload(), port);
+    }
+
+    public void JoinSession()
+    {
+        if (!CanStartSession())
+        {
+            return;
+        }
+
+        if (!ConnectionEndpoint.TryParseAddress(ReadText(addressInput), out string address))
+        {
+            ShowStatus(MESSAGE_INVALID_ADDRESS, errorColor);
+            return;
+        }
+
+        if (!TryReadPort(out ushort port))
+        {
+            return;
+        }
+
+        SaveLastEndpoint(address, port);
+        session.StartClient(PrepareSessionPayload(), address, port);
+    }
+
+    private bool CanStartSession()
+    {
+        if (!IsCatalogValid())
+        {
+            return false;
+        }
+
+        if (session == null)
+        {
+            ShowStatus(MESSAGE_NO_SESSION, errorColor);
+            return false;
+        }
+
+        return !session.IsBusy;
+    }
+
+    private bool TryReadPort(out ushort port)
+    {
+        if (ConnectionEndpoint.TryParsePort(ReadText(portInput), out port))
+        {
+            return true;
+        }
+
+        ShowStatus(MESSAGE_INVALID_PORT, errorColor);
+        return false;
+    }
+
+    // ScenarioSession giu kich ban local de cac buoc sau (JSON toa do) lay ten; payload gui lua chon len server
+    private ConnectionPayload PrepareSessionPayload()
+    {
+        string rawName = ReadText(scenarioNameInput).Trim();
         string scenarioName = rawName.Length > 0 ? rawName : DEFAULT_SCENARIO_NAME;
-        ScenarioSession.Set(CreateScenarioData(scenarioName));
-        SceneManager.LoadScene(Constants.SCENE_GAMEPLAY);
+        ScenarioData scenario = CreateScenarioData(scenarioName);
+        ScenarioSession.Set(scenario);
+        return ConnectionPayload.Create(scenario.characterId, scenario.weaponId, scenario.scenarioName);
+    }
+
+    private void OnConnectionStatusChanged(ConnectionStatus status)
+    {
+        RefreshConnection();
+    }
+
+    private void RefreshConnection()
+    {
+        if (session == null)
+        {
+            SetConnectionText(MESSAGE_NO_SESSION, errorColor);
+            SetInteractable(hostButton, false);
+            SetInteractable(joinButton, false);
+            return;
+        }
+
+        bool canStart = !session.IsBusy && IsCatalogValid();
+        SetInteractable(hostButton, canStart);
+        SetInteractable(joinButton, canStart);
+        SetInteractable(addressInput, canStart);
+        SetInteractable(portInput, canStart);
+
+        switch (session.Status)
+        {
+            case ConnectionStatus.Connecting:
+                SetConnectionText(MESSAGE_CONNECTING, warningColor);
+                break;
+            case ConnectionStatus.Connected:
+                SetConnectionText(MESSAGE_CONNECTED, successColor);
+                break;
+            case ConnectionStatus.Failed:
+                ShowConnectionError(MESSAGE_FAILED);
+                break;
+            case ConnectionStatus.Disconnected:
+                ShowConnectionError(MESSAGE_DISCONNECTED);
+                break;
+            case ConnectionStatus.HostStopped:
+                ShowConnectionError(MESSAGE_HOST_STOPPED);
+                break;
+            default:
+                SetConnectionText(lanAddressMessage, infoColor);
+                break;
+        }
+    }
+
+    private void ShowConnectionError(string message)
+    {
+        string fullMessage = string.IsNullOrEmpty(session.LastReason) ? message : $"{message} {session.LastReason}";
+        SetConnectionText(fullMessage, errorColor);
+        ShowStatus(fullMessage, errorColor);
+    }
+
+    private void SetConnectionText(string message, Color color)
+    {
+        if (connectionStatusText != null)
+        {
+            connectionStatusText.text = message;
+            connectionStatusText.color = color;
+        }
+    }
+
+    private void LoadLastEndpoint()
+    {
+        if (addressInput != null)
+        {
+            addressInput.text = PlayerPrefs.GetString(Constants.PREFS_LAST_ADDRESS, Constants.DEFAULT_ADDRESS);
+        }
+
+        if (portInput != null)
+        {
+            portInput.text = PlayerPrefs.GetInt(Constants.PREFS_LAST_PORT, Constants.DEFAULT_PORT).ToString();
+        }
+    }
+
+    private static void SaveLastEndpoint(string address, ushort port)
+    {
+        if (ConnectionEndpoint.TryParseAddress(address, out string validAddress))
+        {
+            PlayerPrefs.SetString(Constants.PREFS_LAST_ADDRESS, validAddress);
+        }
+
+        PlayerPrefs.SetInt(Constants.PREFS_LAST_PORT, port);
+        PlayerPrefs.Save();
+    }
+
+    private static string ReadText(TMP_InputField inputField)
+    {
+        return inputField != null ? inputField.text : string.Empty;
     }
 
     private void OnCharacterPrevClicked()
@@ -330,6 +521,14 @@ public class ScenarioSetupPanel : MonoBehaviour
         if (button != null)
         {
             button.interactable = interactable;
+        }
+    }
+
+    private static void SetInteractable(TMP_InputField inputField, bool interactable)
+    {
+        if (inputField != null)
+        {
+            inputField.interactable = interactable;
         }
     }
 

@@ -22,6 +22,7 @@ public class Explosion : MonoBehaviour
 
     private readonly Collider[] overlapBuffer = new Collider[MAX_AFFECTED_COLLIDERS];
     private readonly HashSet<Rigidbody> pushedBodies = new HashSet<Rigidbody>();
+    private bool shouldApplyForce;
 
     void Start()
     {
@@ -36,7 +37,11 @@ public class Explosion : MonoBehaviour
             StartCoroutine(Flash());
         }
 
-        ApplyForce();
+        if (shouldApplyForce)
+        {
+            ApplyForce();
+        }
+
         if (impulseSource != null)
         {
             impulseSource.GenerateImpulse();
@@ -49,6 +54,12 @@ public class Explosion : MonoBehaviour
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, radius);
+    }
+
+    // Goi ngay sau Instantiate (truoc Start). Luc no chi server chay, VFX/am thanh/rung moi may (KI-26)
+    public void Init(bool applyForce)
+    {
+        shouldApplyForce = applyForce;
     }
 
     private void PlayParticles()

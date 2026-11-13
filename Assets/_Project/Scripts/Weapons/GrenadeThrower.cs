@@ -1,6 +1,9 @@
+using System;
 using System.Collections;
 using UnityEngine;
 
+// Chi bat tren owner (KI-21). Nhan input, tinh luc nem, doi state qua tren tay; khong biet mang:
+// GrenadeNetwork nghe PinPullPerformed / ThrowPerformed de gui RPC
 public class GrenadeThrower : MonoBehaviour
 {
     [SerializeField] private InputReader inputReader;
@@ -17,8 +20,14 @@ public class GrenadeThrower : MonoBehaviour
     private float chargeStartTime;
     private WaitForSeconds respawnWait;
 
+    public event Action<Vector3> PinPullPerformed;
+    public event Action<Vector3, Quaternion, Vector3> ThrowPerformed;
+
     public bool IsCharging { get; private set; }
     public float ChargeNormalized => IsCharging ? CalculateCharge() : 0f;
+    public float MaxThrowSpeed => maxThrowSpeed;
+    public float RespawnDelay => respawnDelay;
+    public Collider[] OwnerColliders => ownerColliders;
 
     void Awake()
     {
@@ -45,6 +54,8 @@ public class GrenadeThrower : MonoBehaviour
         inputReader.ThrowStarted += OnThrowStarted;
         inputReader.ThrowReleased += OnThrowReleased;
         weaponHolder.WeaponEquipped += OnWeaponEquipped;
+        // Bat sau khi loadout da dung (owner trong phien mang) -> lay luon vu khi dang cam
+        currentGrenade = weaponHolder.CurrentInstance as Grenade;
     }
 
     void OnDisable()
@@ -83,6 +94,7 @@ public class GrenadeThrower : MonoBehaviour
         if (currentGrenade != null && currentGrenade.TryPullPin(ejectDirection))
         {
             weaponHolder.SetSwitchLocked(true);
+            PinPullPerformed?.Invoke(ejectDirection);
         }
     }
 
@@ -107,13 +119,16 @@ public class GrenadeThrower : MonoBehaviour
 
         Vector3 velocity = ComputeThrowVelocity(CalculateCharge());
         IsCharging = false;
-        if (!currentGrenade.TryThrow(velocity, ownerColliders))
+        // Lay vi tri TRUOC TryThrow vi qua tren tay se bi an
+        Vector3 origin = currentGrenade.ReleasePosition;
+        Quaternion rotation = currentGrenade.ReleaseRotation;
+        if (!currentGrenade.TryThrow(velocity))
         {
             return;
         }
 
         currentGrenade = null;
-        weaponHolder.SetSwitchLocked(false);
+        ThrowPerformed?.Invoke(origin, rotation, velocity);
         StartCoroutine(RespawnAfterDelay(weaponHolder.CurrentSlot));
     }
 
@@ -122,9 +137,11 @@ public class GrenadeThrower : MonoBehaviour
         return maxChargeTime > 0f ? Mathf.Clamp01((Time.time - chargeStartTime) / maxChargeTime) : 1f;
     }
 
+    // Giu khoa doi vu khi toi khi co qua moi: doi sang slot luu dan luc dang trong se bat lai qua da an
     private IEnumerator RespawnAfterDelay(int slot)
     {
         yield return respawnWait;
+        weaponHolder.SetSwitchLocked(false);
         weaponHolder.RespawnSlot(slot);
     }
 }

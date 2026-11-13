@@ -11,6 +11,8 @@ internal static class ScenarioSetupSceneFactory
 {
     private const string MAIN_CAMERA_TAG = "MainCamera";
     private const int NAME_CHARACTER_LIMIT = 64;
+    private const int ADDRESS_CHARACTER_LIMIT = 15;
+    private const int PORT_CHARACTER_LIMIT = 5;
 
     private static readonly Color BACKGROUND_COLOR = new Color(0.07f, 0.08f, 0.1f);
     internal static readonly Color CARD_COLOR = new Color(0.13f, 0.14f, 0.17f);
@@ -19,12 +21,24 @@ internal static class ScenarioSetupSceneFactory
     private static readonly Color MUTED_TEXT_COLOR = new Color(0.7f, 0.72f, 0.76f);
     private static readonly Color AMBIENT_COLOR = new Color(0.55f, 0.56f, 0.6f);
 
-    private static readonly Vector2 CHARACTER_CARD_POSITION = new Vector2(-420f, 110f);
-    private static readonly Vector2 WEAPON_CARD_POSITION = new Vector2(420f, 110f);
-    private static readonly Vector2 CARD_SIZE = new Vector2(640f, 640f);
-    private static readonly Vector2 PREVIEW_SIZE = new Vector2(520f, 520f);
+    private static readonly Color HOST_COLOR = new Color(0.2f, 0.55f, 0.35f);
+    private static readonly Color JOIN_COLOR = new Color(0.2f, 0.4f, 0.65f);
+
+    private static readonly Vector2 CHARACTER_CARD_POSITION = new Vector2(-420f, 120f);
+    private static readonly Vector2 WEAPON_CARD_POSITION = new Vector2(420f, 120f);
+    private static readonly Vector2 CARD_SIZE = new Vector2(640f, 600f);
+    private static readonly Vector2 PREVIEW_SIZE = new Vector2(440f, 440f);
     private static readonly Vector2 ARROW_SIZE = new Vector2(70f, 70f);
-    private static readonly Vector2 ACTION_BUTTON_SIZE = new Vector2(300f, 70f);
+    private static readonly Vector2 ACTION_BUTTON_SIZE = new Vector2(300f, 60f);
+    private static readonly Vector2 NETWORK_BUTTON_SIZE = new Vector2(220f, 60f);
+    private static readonly Vector2 ADDRESS_INPUT_SIZE = new Vector2(340f, 60f);
+    private static readonly Vector2 PORT_INPUT_SIZE = new Vector2(170f, 60f);
+
+    private const float NAME_ROW_Y = -215f;
+    private const float SCENARIO_BUTTON_ROW_Y = -290f;
+    private const float NETWORK_ROW_Y = -380f;
+    private const float CONNECTION_STATUS_Y = -445f;
+    private const float TOAST_Y = -500f;
 
     private struct CardWidgets
     {
@@ -36,7 +50,7 @@ internal static class ScenarioSetupSceneFactory
     internal static void Build(string scenePath, string[] characterPaths, string[] weaponPaths,
         string characterTexturePath, string weaponTexturePath, string storeProviderPath)
     {
-        Scene scene = ProjectSceneBuilder.CreateEmptyScene();
+        Scene scene = ProjectSceneBuilder.CreateEmptyScene(scenePath);
         // Nap asset SAU khi tao scene (KI-19)
         CharacterDefinition[] characters = ProjectSceneBuilder.LoadAssetsAtPaths<CharacterDefinition>(characterPaths);
         WeaponDefinition[] weapons = ProjectSceneBuilder.LoadAssetsAtPaths<WeaponDefinition>(weaponPaths);
@@ -59,15 +73,27 @@ internal static class ScenarioSetupSceneFactory
         CardWidgets weaponCard = CreateCard(root, "WeaponCard", "WEAPON", WEAPON_CARD_POSITION, weaponTexture);
 
         TMP_InputField nameInput = UiFactory.CreateInputField(root, "ScenarioNameInput", "Enter scenario name...", 30f,
-            NAME_CHARACTER_LIMIT, UiFactory.CENTER, new Vector2(0f, -290f), new Vector2(900f, 70f));
+            NAME_CHARACTER_LIMIT, UiFactory.CENTER, new Vector2(0f, NAME_ROW_Y), new Vector2(900f, 64f));
         Button saveButton = UiFactory.CreateButton(root, "SaveButton", "Save Scenario", 28f, ACCENT_COLOR,
-            UiFactory.CENTER, new Vector2(-330f, -385f), ACTION_BUTTON_SIZE);
+            UiFactory.CENTER, new Vector2(-170f, SCENARIO_BUTTON_ROW_Y), ACTION_BUTTON_SIZE);
         Button openFolderButton = UiFactory.CreateButton(root, "OpenFolderButton", "Open Folder", 28f, BUTTON_COLOR,
-            UiFactory.CENTER, new Vector2(0f, -385f), ACTION_BUTTON_SIZE);
-        Button startButton = UiFactory.CreateButton(root, "StartButton", "Start", 28f, BUTTON_COLOR,
-            UiFactory.CENTER, new Vector2(330f, -385f), ACTION_BUTTON_SIZE);
-        TMP_Text statusText = UiFactory.CreateText(root, "StatusText", string.Empty, 26f, Color.white,
-            UiFactory.CENTER, new Vector2(0f, -465f), new Vector2(1700f, 60f), TextAlignmentOptions.Center);
+            UiFactory.CENTER, new Vector2(170f, SCENARIO_BUTTON_ROW_Y), ACTION_BUTTON_SIZE);
+
+        TMP_InputField addressInput = UiFactory.CreateInputField(root, "AddressInput", "Host IP (127.0.0.1)", 28f,
+            ADDRESS_CHARACTER_LIMIT, UiFactory.CENTER, new Vector2(-405f, NETWORK_ROW_Y), ADDRESS_INPUT_SIZE);
+        addressInput.contentType = TMP_InputField.ContentType.Standard;
+        TMP_InputField portInput = UiFactory.CreateInputField(root, "PortInput", "Port", 28f,
+            PORT_CHARACTER_LIMIT, UiFactory.CENTER, new Vector2(-135f, NETWORK_ROW_Y), PORT_INPUT_SIZE);
+        portInput.contentType = TMP_InputField.ContentType.IntegerNumber;
+        Button hostButton = UiFactory.CreateButton(root, "HostButton", "Host", 28f, HOST_COLOR,
+            UiFactory.CENTER, new Vector2(100f, NETWORK_ROW_Y), NETWORK_BUTTON_SIZE);
+        Button joinButton = UiFactory.CreateButton(root, "JoinButton", "Join", 28f, JOIN_COLOR,
+            UiFactory.CENTER, new Vector2(340f, NETWORK_ROW_Y), NETWORK_BUTTON_SIZE);
+
+        TMP_Text connectionStatusText = UiFactory.CreateText(root, "ConnectionStatusText", string.Empty, 26f, MUTED_TEXT_COLOR,
+            UiFactory.CENTER, new Vector2(0f, CONNECTION_STATUS_Y), new Vector2(1700f, 44f), TextAlignmentOptions.Center);
+        TMP_Text statusText = UiFactory.CreateText(root, "StatusText", string.Empty, 24f, Color.white,
+            UiFactory.CENTER, new Vector2(0f, TOAST_Y), new Vector2(1700f, 56f), TextAlignmentOptions.Center);
         statusText.textWrappingMode = TextWrappingModes.Normal;
 
         ScenarioSetupPanel panel = canvas.gameObject.AddComponent<ScenarioSetupPanel>();
@@ -87,7 +113,11 @@ internal static class ScenarioSetupSceneFactory
         serialized.FindProperty("weaponNextButton").objectReferenceValue = weaponCard.NextButton;
         serialized.FindProperty("saveButton").objectReferenceValue = saveButton;
         serialized.FindProperty("openFolderButton").objectReferenceValue = openFolderButton;
-        serialized.FindProperty("startButton").objectReferenceValue = startButton;
+        serialized.FindProperty("addressInput").objectReferenceValue = addressInput;
+        serialized.FindProperty("portInput").objectReferenceValue = portInput;
+        serialized.FindProperty("hostButton").objectReferenceValue = hostButton;
+        serialized.FindProperty("joinButton").objectReferenceValue = joinButton;
+        serialized.FindProperty("connectionStatusText").objectReferenceValue = connectionStatusText;
         serialized.ApplyModifiedPropertiesWithoutUndo();
 
         EditorSceneManager.SaveScene(scene, scenePath);

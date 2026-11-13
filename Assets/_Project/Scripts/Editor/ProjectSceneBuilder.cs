@@ -9,7 +9,7 @@ using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// Dung tu dong: CharacterDefinition, RenderTexture, scene ScenarioSetup (UI + preview), noi Gameplay (spawner, HUD, quy dao, Esc), Build Settings
+// Dung tu dong: CharacterDefinition, RenderTexture, scene Bootstrap (NetworkManager), ScenarioSetup (UI + preview + Host/Join), noi Gameplay (spawner, HUD, quy dao, Esc), Build Settings
 public static class ProjectSceneBuilder
 {
     private const string MENU_BUILD_ALL = "Tools/Test3D/Build Scenario Setup + Wire Gameplay";
@@ -18,18 +18,20 @@ public static class ProjectSceneBuilder
     private const string LOG_PREFIX = "[ProjectSceneBuilder]";
 
     private const string SETUP_SCENE_PATH = "Assets/_Project/Scenes/ScenarioSetup.unity";
-    private const string GAMEPLAY_SCENE_PATH = "Assets/_Project/Scenes/Gameplay.unity";
+    internal const string GAMEPLAY_SCENE_PATH = "Assets/_Project/Scenes/Gameplay.unity";
     private const string DATA_FOLDER = "Assets/_Project/Data";
     private const string TEXTURE_FOLDER = "Assets/_Project/Textures";
     private const string CHARACTER_PREFAB_FOLDER = "Assets/_Project/Prefabs/Characters";
-    private const string TRAJECTORY_MATERIAL_PATH = "Assets/_Project/VFX/M_FX_Trajectory.mat";
+    internal const string TRAJECTORY_MATERIAL_PATH = "Assets/_Project/VFX/M_FX_Trajectory.mat";
     private const string CHARACTER_RT_PATH = TEXTURE_FOLDER + "/RT_CharacterPreview.renderTexture";
     private const string WEAPON_RT_PATH = TEXTURE_FOLDER + "/RT_WeaponPreview.renderTexture";
     private const string AK47_DEFINITION_PATH = DATA_FOLDER + "/WPN_AK47.asset";
     private const string GRENADE_DEFINITION_PATH = DATA_FOLDER + "/WPN_Grenade.asset";
-    private const string LOCAL_STORE_PROVIDER_PATH = DATA_FOLDER + "/ScenarioStore_Local.asset";
+    internal const string LOCAL_STORE_PROVIDER_PATH = DATA_FOLDER + "/ScenarioStore_Local.asset";
 
     private const int RENDER_TEXTURE_SIZE = 1024;
+    private const int BUILD_WINDOW_WIDTH = 1280;
+    private const int BUILD_WINDOW_HEIGHT = 720;
     private const int RENDER_TEXTURE_DEPTH = 24;
     private const float PREVIEW_FIELD_OF_VIEW = 35f;
     private const float CHARACTER_DISTANCE = 3.6f;
@@ -61,11 +63,10 @@ public static class ProjectSceneBuilder
             return;
         }
 
-        CharacterDefinition[] characters = EnsureCharacterDefinitions();
-        WeaponDefinition[] weapons = LoadWeaponDefinitions();
-        if (characters.Length == 0 || weapons.Length == 0)
+        // NewScene/OpenScene (Single) do asset khong con tham chieu -> bien C# giu asset cu thanh null khi gan.
+        // Chi truyen duong dan, factory nap lai SAU khi scene da mo.
+        if (!TryCollectCatalogPaths(out string[] characterPaths, out string[] weaponPaths))
         {
-            EditorUtility.DisplayDialog(DIALOG_TITLE, "Missing character prefabs or WPN_AK47 / WPN_Grenade definitions in Assets/_Project/Data.", DIALOG_OK);
             return;
         }
 
@@ -75,18 +76,36 @@ public static class ProjectSceneBuilder
         string storeProviderPath = EnsureStoreProvider();
         AssetDatabase.SaveAssets();
 
-        // NewScene/OpenScene (Single) do asset khong con tham chieu -> bien C# giu asset cu thanh null khi gan.
-        // Chi truyen duong dan, factory nap lai SAU khi scene da mo.
-        string[] characterPaths = ToAssetPaths(characters);
-        string[] weaponPaths = ToAssetPaths(weapons);
         ScenarioSetupSceneFactory.Build(SETUP_SCENE_PATH, characterPaths, weaponPaths, CHARACTER_RT_PATH, WEAPON_RT_PATH, storeProviderPath);
-        bool gameplayWired = GameplaySceneWiring.Wire(GAMEPLAY_SCENE_PATH, characterPaths, weaponPaths, TRAJECTORY_MATERIAL_PATH);
+        BootstrapSceneFactory.Build(BootstrapPlayModeStarter.BOOTSTRAP_SCENE_PATH, characterPaths, weaponPaths);
+        bool gameplayWired = NetworkPlayerBuilder.Build(GAMEPLAY_SCENE_PATH, characterPaths, weaponPaths)
+            && NetworkGrenadeBuilder.Build()
+            && ScorchDecalBuilder.Build(GAMEPLAY_SCENE_PATH)
+            && NetworkPropsBuilder.Build(GAMEPLAY_SCENE_PATH) >= 0
+            && GameplaySceneWiring.Wire(GAMEPLAY_SCENE_PATH, TRAJECTORY_MATERIAL_PATH, storeProviderPath, characterPaths);
         UpdateBuildSettings();
+        ConfigurePlayerSettings();
+        BootstrapPlayModeStarter.Apply();
         EditorSceneManager.OpenScene(SETUP_SCENE_PATH, OpenSceneMode.Single);
 
-        string gameplayMessage = gameplayWired ? "Gameplay wired (spawner, HUD, trajectory, Esc)." : "Gameplay NOT wired - see Console.";
-        Debug.Log($"{LOG_PREFIX} Done. {SETUP_SCENE_PATH} built. {gameplayMessage}");
-        EditorUtility.DisplayDialog(DIALOG_TITLE, $"ScenarioSetup scene built.\n{gameplayMessage}\nBuild Settings: ScenarioSetup, Gameplay.\n\nPress Play in ScenarioSetup.", DIALOG_OK);
+        string gameplayMessage = gameplayWired ? "Gameplay wired (NET_Player, NET_GrenadeProjectile, scorch decals, networked props, spawner, HUD, trajectory, F5 positions, Esc)." : "Gameplay NOT wired - see Console.";
+        Debug.Log($"{LOG_PREFIX} Done. Bootstrap + {SETUP_SCENE_PATH} built. {gameplayMessage}");
+        EditorUtility.DisplayDialog(DIALOG_TITLE, $"Bootstrap + ScenarioSetup scenes built.\n{gameplayMessage}\nBuild Settings: Bootstrap, ScenarioSetup, Gameplay.\n\nPress Play from any scene - Play Mode always starts in Bootstrap.", DIALOG_OK);
+    }
+
+    internal static bool TryCollectCatalogPaths(out string[] characterPaths, out string[] weaponPaths)
+    {
+        CharacterDefinition[] characters = EnsureCharacterDefinitions();
+        WeaponDefinition[] weapons = LoadWeaponDefinitions();
+        characterPaths = ToAssetPaths(characters);
+        weaponPaths = ToAssetPaths(weapons);
+        if (characters.Length > 0 && weapons.Length > 0)
+        {
+            return true;
+        }
+
+        EditorUtility.DisplayDialog(DIALOG_TITLE, "Missing character prefabs or WPN_AK47 / WPN_Grenade definitions in Assets/_Project/Data.", DIALOG_OK);
+        return false;
     }
 
     // TMP chua import Essential Resources -> text khong hien; import roi yeu cau chay lai menu
@@ -209,10 +228,23 @@ public static class ProjectSceneBuilder
         return ExplosionPrefabBuilder.CreateSolidMaterial(TRAJECTORY_MATERIAL_PATH);
     }
 
+    // Test mang (N6): cua so mat focus van phai chay, neu khong ket noi bi ngat; cua so de dat 2 ban build canh nhau khi quay video
+    private static void ConfigurePlayerSettings()
+    {
+        PlayerSettings.runInBackground = true;
+        PlayerSettings.visibleInBackground = true;
+        PlayerSettings.fullScreenMode = FullScreenMode.Windowed;
+        PlayerSettings.defaultScreenWidth = BUILD_WINDOW_WIDTH;
+        PlayerSettings.defaultScreenHeight = BUILD_WINDOW_HEIGHT;
+        PlayerSettings.resizableWindow = true;
+        AssetDatabase.SaveAssets();
+    }
+
     private static void UpdateBuildSettings()
     {
         EditorBuildSettings.scenes = new[]
         {
+            new EditorBuildSettingsScene(BootstrapPlayModeStarter.BOOTSTRAP_SCENE_PATH, true),
             new EditorBuildSettingsScene(SETUP_SCENE_PATH, true),
             new EditorBuildSettingsScene(GAMEPLAY_SCENE_PATH, true)
         };
@@ -310,8 +342,14 @@ public static class ProjectSceneBuilder
         GameObject eventSystemObject = new GameObject("EventSystem");
         eventSystemObject.AddComponent<EventSystem>();
         // Project chi bat Input System moi -> StandaloneInputModule se nem exception (KI-2)
+        // AddComponent trong Editor goi Reset() -> module tu gan DefaultInputActions.inputactions cua package (asset co luu).
+        // KHONG goi AssignDefaultActions(): no tao asset tam giu trong bien static, OpenScene (Single) do asset do
+        // -> lan chay menu thu 2 trong cung domain nem "Action must be part of an InputActionAsset" (KI-28)
         InputSystemUIInputModule module = eventSystemObject.AddComponent<InputSystemUIInputModule>();
-        module.AssignDefaultActions();
+        if (module.actionsAsset == null)
+        {
+            Debug.LogWarning($"{LOG_PREFIX} EventSystem UI module has no actions asset - it will fall back to default actions at runtime.");
+        }
     }
 
     internal static Canvas CreateCanvas(string canvasName)
@@ -322,13 +360,27 @@ public static class ProjectSceneBuilder
         CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = UiFactory.REFERENCE_RESOLUTION;
-        scaler.matchWidthOrHeight = 0.5f;
+        // Expand: ca khung 1920x1080 luon nam tron trong man hinh o moi ti le (cua so MPPM hep/rong) -> khung khong de len tieu de
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
         canvasObject.AddComponent<GraphicRaycaster>();
         return canvas;
     }
 
-    internal static Scene CreateEmptyScene()
+    // Scene da co: mo lai roi xoa het object thay vi NewScene -> scene luon co duong dan.
+    // NewScene (chua luu, path rong) lam virtual player cua MPPM dang mo nem "Scene file not found: ''"
+    internal static Scene CreateEmptyScene(string scenePath)
     {
-        return EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath) == null)
+        {
+            return EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            Object.DestroyImmediate(rootObject);
+        }
+
+        return scene;
     }
 }

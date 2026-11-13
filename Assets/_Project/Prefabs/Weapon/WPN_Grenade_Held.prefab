@@ -73,13 +73,7 @@ PrefabInstance:
       addedObject: {fileID: 8863775668375871114}
     - targetCorrespondingSourceObject: {fileID: 8262972272247739688, guid: 57b63a68fc79eb54cb156a8e93fece2d, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 3914550685223795179}
-    - targetCorrespondingSourceObject: {fileID: 8262972272247739688, guid: 57b63a68fc79eb54cb156a8e93fece2d, type: 3}
-      insertIndex: -1
       addedObject: {fileID: 3612332322133056632}
-    - targetCorrespondingSourceObject: {fileID: 8243105850374392674, guid: 57b63a68fc79eb54cb156a8e93fece2d, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 3002404118024472010}
     - targetCorrespondingSourceObject: {fileID: 8945551842053127758, guid: 57b63a68fc79eb54cb156a8e93fece2d, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1174141505622908807}
@@ -116,47 +110,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 34f8895271c82e949941308491c8ed18, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Grenade
-  grenadeRigidbody: {fileID: 3914550685223795179}
-  bodyCollider: {fileID: 3002404118024472010}
+  body: {fileID: 3005827207916453901}
   pin: {fileID: 2197582752475705877}
   lever: {fileID: 8498580807805763149}
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 64
-  minGroundNormalY: 0.6
-  explosionPrefab: {fileID: 914597398217684336, guid: 254b8c7b57bf8d94a91eff8a902a61be, type: 3}
   audioSource: {fileID: 3612332322133056632}
   pinPullClip: {fileID: 0}
-  spinOnThrow: 6
-  maxFlightTime: 10
-  killHeight: -50
---- !u!54 &3914550685223795179
-Rigidbody:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 168757057050368526}
-  serializedVersion: 5
-  m_Mass: 0.4
-  m_LinearDamping: 0
-  m_AngularDamping: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 1
-  m_Interpolate: 1
-  m_Constraints: 0
-  m_CollisionDetection: 0
 --- !u!82 &3612332322133056632
 AudioSource:
   m_ObjectHideFlags: 0
@@ -254,34 +212,6 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
---- !u!1 &187206415833351236 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8243105850374392674, guid: 57b63a68fc79eb54cb156a8e93fece2d, type: 3}
-  m_PrefabInstance: {fileID: 8141507736378101542}
-  m_PrefabAsset: {fileID: 0}
---- !u!136 &3002404118024472010
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 187206415833351236}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.04411001
-  m_Height: 0.058600016
-  m_Direction: 1
-  m_Center: {x: 0, y: 0, z: -0.0000000013969843}
 --- !u!1 &925646024457040232 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 8945551842053127758, guid: 57b63a68fc79eb54cb156a8e93fece2d, type: 3}
@@ -352,6 +282,7 @@ MonoBehaviour:
   ejectSpeed: 2.5
   spinSpeed: 10
   lifetimeAfterEject: 5
+  colliderEnableDelay: 0.15
 --- !u!1 &2278962988548060309 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 8024555705426131891, guid: 57b63a68fc79eb54cb156a8e93fece2d, type: 3}
@@ -422,3 +353,9 @@ MonoBehaviour:
   ejectSpeed: 1.5
   spinSpeed: 10
   lifetimeAfterEject: 5
+  colliderEnableDelay: 0.15
+--- !u!4 &3005827207916453901 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 6434137317991632683, guid: 57b63a68fc79eb54cb156a8e93fece2d, type: 3}
+  m_PrefabInstance: {fileID: 8141507736378101542}
+  m_PrefabAsset: {fileID: 0}

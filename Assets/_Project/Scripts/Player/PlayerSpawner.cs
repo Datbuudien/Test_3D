@@ -1,6 +1,6 @@
-using System;
 using UnityEngine;
 
+// Doi visual + loadout theo id nhan tu mang (PlayerNetwork goi Apply tren moi may, ke ca client join muon)
 public class PlayerSpawner : MonoBehaviour
 {
     [SerializeField] private CharacterDefinition[] characters;
@@ -9,40 +9,69 @@ public class PlayerSpawner : MonoBehaviour
     [SerializeField] private WeaponHolder weaponHolder;
     [SerializeField] private Transform visualParent;
 
-    // Start (khong Awake): moi OnEnable da subscribe WeaponEquipped truoc khi Rebuild phat event
-    void Start()
+    private string appliedCharacterId = string.Empty;
+
+    public void Apply(string characterId, string weaponId)
     {
-        if (!ScenarioSession.HasScenario || weaponHolder == null || visualParent == null)
+        if (weaponHolder == null || visualParent == null)
         {
+#if UNITY_EDITOR
+            Debug.LogError($"{nameof(PlayerSpawner)} on '{name}' needs WeaponHolder and Visual Parent.", this);
+#endif
             return;
         }
 
-        ScenarioData scenario = ScenarioSession.Current;
-        CharacterDefinition character = FindCharacter(scenario.characterId);
-        CharacterVisual visual = currentVisual;
-        if (character != null && character.VisualPrefab != null)
-        {
-            visual = Instantiate(character.VisualPrefab, visualParent);
-            visual.transform.localPosition = Vector3.zero;
-            visual.transform.localRotation = Quaternion.identity;
-        }
-#if UNITY_EDITOR
-        else
-        {
-            Debug.LogWarning($"{nameof(PlayerSpawner)}: character '{scenario.characterId}' not found, keeping default visual.", this);
-        }
-#endif
+        CharacterVisual visual = ResolveVisual(characterId);
+        weaponHolder.Rebuild(visual, BuildLoadout(weaponId), 0);
+    }
 
-        // Kich ban chi mang dung vu khi da chon; khong tim thay id -> giu ca bo de van choi duoc
-        int weaponSlot = FindWeaponSlot(scenario.weaponId);
-        WeaponDefinition[] loadout = weaponSlot >= 0 ? new[] { weapons[weaponSlot] } : weapons;
-        weaponHolder.Rebuild(visual, loadout, 0);
-        if (visual != currentVisual && currentVisual != null)
+    private CharacterVisual ResolveVisual(string characterId)
+    {
+        CharacterDefinition character = FindCharacter(characterId);
+        if (character == null || character.VisualPrefab == null)
+        {
+#if UNITY_EDITOR
+            Debug.LogWarning($"{nameof(PlayerSpawner)}: character '{characterId}' not found, keeping current visual.", this);
+#endif
+            return currentVisual;
+        }
+
+        if (character.Id == appliedCharacterId && currentVisual != null)
+        {
+            return currentVisual;
+        }
+
+        CharacterVisual visual = Instantiate(character.VisualPrefab, visualParent);
+        visual.transform.localPosition = Vector3.zero;
+        visual.transform.localRotation = Quaternion.identity;
+        if (currentVisual != null)
         {
             Destroy(currentVisual.gameObject);
         }
 
         currentVisual = visual;
+        appliedCharacterId = character.Id;
+        return visual;
+    }
+
+    // Phien mang: vu khi da chon o slot 0 + luu dan (neu chua chon) de may nao cung demo nem duoc
+    private WeaponDefinition[] BuildLoadout(string weaponId)
+    {
+        WeaponDefinition selected = FindWeapon(weaponId);
+        if (selected == null)
+        {
+            selected = FirstValid(weapons);
+        }
+
+        if (selected == null)
+        {
+            return weapons;
+        }
+
+        WeaponDefinition grenade = FindGrenade();
+        return grenade == null || grenade == selected
+            ? new[] { selected }
+            : new[] { selected, grenade };
     }
 
     private CharacterDefinition FindCharacter(string characterId)
@@ -63,8 +92,57 @@ public class PlayerSpawner : MonoBehaviour
         return null;
     }
 
-    private int FindWeaponSlot(string weaponId)
+    private WeaponDefinition FindWeapon(string weaponId)
     {
-        return weapons == null ? -1 : Array.FindIndex(weapons, weapon => weapon != null && weapon.Id == weaponId);
+        if (weapons == null)
+        {
+            return null;
+        }
+
+        foreach (WeaponDefinition weapon in weapons)
+        {
+            if (weapon != null && weapon.Id == weaponId)
+            {
+                return weapon;
+            }
+        }
+
+        return null;
+    }
+
+    private WeaponDefinition FindGrenade()
+    {
+        if (weapons == null)
+        {
+            return null;
+        }
+
+        foreach (WeaponDefinition weapon in weapons)
+        {
+            if (weapon != null && weapon.Type == WeaponType.Grenade)
+            {
+                return weapon;
+            }
+        }
+
+        return null;
+    }
+
+    private static WeaponDefinition FirstValid(WeaponDefinition[] definitions)
+    {
+        if (definitions == null)
+        {
+            return null;
+        }
+
+        foreach (WeaponDefinition definition in definitions)
+        {
+            if (definition != null)
+            {
+                return definition;
+            }
+        }
+
+        return null;
     }
 }

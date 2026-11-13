@@ -11,6 +11,7 @@ public class InputReader : MonoBehaviour
     private const string ACTION_WEAPON_1 = "Weapon1";
     private const string ACTION_WEAPON_2 = "Weapon2";
     private const string ACTION_BACK = "Back";
+    private const string ACTION_SAVE_POSITIONS = "SavePositions";
     private const int WEAPON_SLOT_1 = 0;
     private const int WEAPON_SLOT_2 = 1;
 
@@ -23,9 +24,11 @@ public class InputReader : MonoBehaviour
     private InputAction weapon1Action;
     private InputAction weapon2Action;
     private InputAction backAction;
+    private InputAction savePositionsAction;
 
     public event Action<Vector2> MoveChanged;
     public event Action BackPressed;
+    public event Action SavePositionsPressed;
     public event Action PullPinPressed;
     public event Action ThrowStarted;
     public event Action ThrowReleased;
@@ -51,6 +54,7 @@ public class InputReader : MonoBehaviour
         weapon1Action = playerMap.FindAction(ACTION_WEAPON_1, throwIfNotFound: true);
         weapon2Action = playerMap.FindAction(ACTION_WEAPON_2, throwIfNotFound: true);
         backAction = playerMap.FindAction(ACTION_BACK, throwIfNotFound: true);
+        savePositionsAction = playerMap.FindAction(ACTION_SAVE_POSITIONS, throwIfNotFound: true);
     }
 
     void OnEnable()
@@ -68,6 +72,7 @@ public class InputReader : MonoBehaviour
         weapon1Action.performed += OnWeapon1Performed;
         weapon2Action.performed += OnWeapon2Performed;
         backAction.performed += OnBackPerformed;
+        savePositionsAction.performed += OnSavePositionsPerformed;
         playerMap.Enable();
     }
 
@@ -87,6 +92,7 @@ public class InputReader : MonoBehaviour
         weapon1Action.performed -= OnWeapon1Performed;
         weapon2Action.performed -= OnWeapon2Performed;
         backAction.performed -= OnBackPerformed;
+        savePositionsAction.performed -= OnSavePositionsPerformed;
         playerMap.Disable();
         Move = Vector2.zero;
     }
@@ -131,5 +137,10 @@ public class InputReader : MonoBehaviour
     private void OnBackPerformed(InputAction.CallbackContext context)
     {
         BackPressed?.Invoke();
+    }
+
+    private void OnSavePositionsPerformed(InputAction.CallbackContext context)
+    {
+        SavePositionsPressed?.Invoke();
     }
 }

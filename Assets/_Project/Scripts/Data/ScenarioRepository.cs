@@ -148,6 +148,8 @@ public class ScenarioRepository : IScenarioStore
                 return false;
             }
 
+            // File Task 1 khong co savedBy/players -> khong de null cho noi doc
+            loaded.Normalize();
             data = loaded;
             return true;
         }

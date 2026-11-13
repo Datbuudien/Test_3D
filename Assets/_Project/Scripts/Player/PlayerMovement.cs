@@ -80,6 +80,11 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
+    public void SetCameraTransform(Transform newCameraTransform)
+    {
+        cameraTransform = newCameraTransform;
+    }
+
     private void OnMoveChanged(Vector2 input)
     {
         moveInput = input;

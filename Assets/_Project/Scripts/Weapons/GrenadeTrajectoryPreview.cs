@@ -2,24 +2,23 @@ using UnityEngine;
 
 public class GrenadeTrajectoryPreview : MonoBehaviour
 {
-    [SerializeField] private GrenadeThrower thrower;
-    [SerializeField] private WeaponHolder weaponHolder;
     [SerializeField] private LineRenderer lineRenderer;
     [SerializeField] private Transform landingMarker;
     [SerializeField] private LayerMask collisionMask;
     [SerializeField] private int maxPoints = 40;
     [SerializeField] private float timeStep = 0.05f;
 
+    // Nhan vat local sinh luc chay -> LocalPlayerBinder truyen vao qua Bind
+    private GrenadeThrower thrower;
+    private WeaponHolder weaponHolder;
     private Vector3[] points;
-    private bool isConfigured;
 
     void Awake()
     {
-        isConfigured = thrower != null && weaponHolder != null && lineRenderer != null && maxPoints > 1;
-        if (!isConfigured)
+        if (lineRenderer == null || maxPoints <= 1)
         {
 #if UNITY_EDITOR
-            Debug.LogError($"{nameof(GrenadeTrajectoryPreview)} on '{name}' needs Thrower, Weapon Holder and Line Renderer. Component disabled.", this);
+            Debug.LogError($"{nameof(GrenadeTrajectoryPreview)} on '{name}' needs a Line Renderer and Max Points > 1. Component disabled.", this);
 #endif
             enabled = false;
             return;
@@ -31,6 +30,12 @@ public class GrenadeTrajectoryPreview : MonoBehaviour
 
     void LateUpdate()
     {
+        if (thrower == null || weaponHolder == null)
+        {
+            Hide();
+            return;
+        }
+
         AbstractWeapon heldWeapon = weaponHolder.CurrentInstance;
         if (!thrower.IsCharging || heldWeapon == null)
         {
@@ -38,14 +43,32 @@ public class GrenadeTrajectoryPreview : MonoBehaviour
             return;
         }
 
-        // Dung chung cong thuc van toc voi luc nem that
+        // Dung chung cong thuc van toc + diem xuat phat voi luc nem that (GrenadeProjectile spawn tai ReleasePosition)
         Vector3 velocity = thrower.ComputeThrowVelocity(thrower.ChargeNormalized);
-        int pointCount = Simulate(heldWeapon.transform.position, velocity, out bool hasHit, out RaycastHit hit);
+        Grenade heldGrenade = heldWeapon as Grenade;
+        Vector3 origin = heldGrenade != null ? heldGrenade.ReleasePosition : heldWeapon.transform.position;
+        int pointCount = Simulate(origin, velocity, out bool hasHit, out RaycastHit hit);
 
         lineRenderer.enabled = true;
         lineRenderer.positionCount = pointCount;
         lineRenderer.SetPositions(points);
         UpdateLandingMarker(hasHit, hit);
+    }
+
+    public void Bind(GrenadeThrower grenadeThrower, WeaponHolder holder)
+    {
+        thrower = grenadeThrower;
+        weaponHolder = holder;
+    }
+
+    public void Unbind()
+    {
+        thrower = null;
+        weaponHolder = null;
+        if (lineRenderer != null)
+        {
+            Hide();
+        }
     }
 
     private int Simulate(Vector3 origin, Vector3 velocity, out bool hasHit, out RaycastHit hit)
