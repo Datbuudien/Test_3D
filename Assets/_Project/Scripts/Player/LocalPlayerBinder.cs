@@ -1,7 +1,8 @@
 using Unity.Cinemachine;
 using UnityEngine;
 
-// Player sinh luc chay (NetworkObject) -> camera / HUD / quy dao / Esc trong scene noi vao nhan vat local qua Bind
+// Player sinh luc chay (NetworkObject) -> nhan LocalPlayerSpawnedEvent qua EventManager (KI-34)
+// roi noi camera / HUD / quy dao / Esc / F5 trong scene vao nhan vat local qua Bind
 public class LocalPlayerBinder : MonoBehaviour
 {
     [SerializeField] private CinemachineCamera cinemachineCamera;
@@ -15,8 +16,9 @@ public class LocalPlayerBinder : MonoBehaviour
 
     void OnEnable()
     {
-        PlayerNetwork.LocalPlayerSpawned += Bind;
-        PlayerNetwork.LocalPlayerDespawned += OnLocalPlayerDespawned;
+        EventManager.SubscribeTo<LocalPlayerSpawnedEvent>(OnLocalPlayerSpawned);
+        EventManager.SubscribeTo<LocalPlayerDespawnedEvent>(OnLocalPlayerDespawned);
+        // Nhan vat local spawn truoc khi binder bat -> da lo su kien, doc trang thai hien tai
         if (PlayerNetwork.Local != null)
         {
             Bind(PlayerNetwork.Local);
@@ -25,9 +27,22 @@ public class LocalPlayerBinder : MonoBehaviour
 
     void OnDisable()
     {
-        PlayerNetwork.LocalPlayerSpawned -= Bind;
-        PlayerNetwork.LocalPlayerDespawned -= OnLocalPlayerDespawned;
+        EventManager.UnsubscribeFrom<LocalPlayerSpawnedEvent>(OnLocalPlayerSpawned);
+        EventManager.UnsubscribeFrom<LocalPlayerDespawnedEvent>(OnLocalPlayerDespawned);
         Unbind();
+    }
+
+    private void OnLocalPlayerSpawned(ref LocalPlayerSpawnedEvent eventData)
+    {
+        Bind(eventData.Player);
+    }
+
+    private void OnLocalPlayerDespawned(ref LocalPlayerDespawnedEvent eventData)
+    {
+        if (eventData.Player == boundPlayer)
+        {
+            Unbind();
+        }
     }
 
     private void Bind(PlayerNetwork player)
@@ -69,14 +84,6 @@ public class LocalPlayerBinder : MonoBehaviour
         if (positionRecorder != null)
         {
             positionRecorder.Bind(player.InputReader);
-        }
-    }
-
-    private void OnLocalPlayerDespawned(PlayerNetwork player)
-    {
-        if (player == boundPlayer)
-        {
-            Unbind();
         }
     }
 

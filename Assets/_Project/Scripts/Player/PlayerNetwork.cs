@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Netcode;
@@ -30,9 +29,7 @@ public class PlayerNetwork : NetworkBehaviour
     private string pendingWeaponId = string.Empty;
     private bool hasPendingLoadout;
 
-    public static event Action<PlayerNetwork> LocalPlayerSpawned;
-    public static event Action<PlayerNetwork> LocalPlayerDespawned;
-
+    // Nguoi nghe dang ky SAU khi LocalPlayerSpawnedEvent da phat thi doc o day
     public static PlayerNetwork Local { get; private set; }
     public static IReadOnlyList<PlayerNetwork> Spawned => spawnedPlayers;
 
@@ -53,8 +50,6 @@ public class PlayerNetwork : NetworkBehaviour
     {
         spawnedPlayers.Clear();
         Local = null;
-        LocalPlayerSpawned = null;
-        LocalPlayerDespawned = null;
     }
 
     // Server goi TRUOC Spawn. Ghi NetworkVariable truoc Spawn bi NGO canh bao (KI-23) -> giu tam, ghi trong OnNetworkSpawn
@@ -103,7 +98,8 @@ public class PlayerNetwork : NetworkBehaviour
         }
 
         Local = this;
-        LocalPlayerSpawned?.Invoke(this);
+        // Prefab sinh luc chay -> scene Gameplay khong gan Inspector toi duoc, bao qua bus (KI-34)
+        EventManager.Raise(new LocalPlayerSpawnedEvent(this));
     }
 
     public override void OnNetworkDespawn()
@@ -125,7 +121,7 @@ public class PlayerNetwork : NetworkBehaviour
         if (Local == this)
         {
             Local = null;
-            LocalPlayerDespawned?.Invoke(this);
+            EventManager.Raise(new LocalPlayerDespawnedEvent(this));
         }
     }
 

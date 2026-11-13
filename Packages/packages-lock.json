@@ -1,5 +1,12 @@
 {
   "dependencies": {
+    "com.peturdarri.generic-event-bus": {
+      "version": "https://github.com/PeturDarri/GenericEventBus.git#8246d96808db5a6a7f7171d2bab6d6fe93d7e7ce",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "8246d96808db5a6a7f7171d2bab6d6fe93d7e7ce"
+    },
     "com.unity.ai.navigation": {
       "version": "2.0.13",
       "depth": 0,

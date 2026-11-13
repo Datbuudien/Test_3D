@@ -84,23 +84,17 @@ public class ScenarioSetupPanel : MonoBehaviour
         }
     }
 
-    // NetworkSession song o scene Bootstrap (DontDestroyOnLoad) -> lay qua Instance, khong gan Inspector duoc
+    // NetworkSession song o scene Bootstrap (DontDestroyOnLoad): lenh Host/Join + doc trang thai qua Instance,
+    // thong bao doi trang thai nhan qua EventManager (KI-34)
     void OnEnable()
     {
         session = NetworkSession.Instance;
-        if (session != null)
-        {
-            session.StatusChanged += OnConnectionStatusChanged;
-        }
+        EventManager.SubscribeTo<ConnectionStatusChangedEvent>(OnConnectionStatusChanged);
     }
 
     void OnDisable()
     {
-        if (session != null)
-        {
-            session.StatusChanged -= OnConnectionStatusChanged;
-        }
-
+        EventManager.UnsubscribeFrom<ConnectionStatusChangedEvent>(OnConnectionStatusChanged);
         session = null;
     }
 
@@ -300,7 +294,7 @@ public class ScenarioSetupPanel : MonoBehaviour
         return ConnectionPayload.Create(scenario.characterId, scenario.weaponId, scenario.scenarioName);
     }
 
-    private void OnConnectionStatusChanged(ConnectionStatus status)
+    private void OnConnectionStatusChanged(ref ConnectionStatusChangedEvent eventData)
     {
         RefreshConnection();
     }

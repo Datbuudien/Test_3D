@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.peturdarri.generic-event-bus": "https://github.com/PeturDarri/GenericEventBus.git#8246d96808db5a6a7f7171d2bab6d6fe93d7e7ce",
     "com.unity.ai.navigation": "2.0.13",
     "com.unity.cinemachine": "3.1.7",
     "com.unity.cloud.gltfast": "6.20.0",

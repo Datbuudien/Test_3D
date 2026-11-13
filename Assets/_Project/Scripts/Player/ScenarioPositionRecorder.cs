@@ -4,8 +4,9 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 
-// Trong Gameplay. Ghi toa do moi nhan vat MAY NAY dang thay vao JSON kich ban: F5 + tu ghi khi roi phien.
-// File co hau to role cua may dang luu (KI-21, KI-29). Luu qua IScenarioStore, khong new repository (KI-20)
+// Trong Gameplay. Ghi toa do moi nhan vat MAY NAY dang thay vao JSON kich ban: F5 + tu ghi khi roi phien (SessionEndingEvent).
+// File co hau to role cua may dang luu (KI-21, KI-29). Luu qua IScenarioStore, khong new repository (KI-20).
+// Khong cham NetworkSession: su kien roi phien nhan qua EventManager (KI-34)
 public class ScenarioPositionRecorder : MonoBehaviour
 {
     private const float CACHE_INTERVAL = 1f;
@@ -21,7 +22,6 @@ public class ScenarioPositionRecorder : MonoBehaviour
 
     private readonly List<PlayerSnapshot> snapshotBuffer = new List<PlayerSnapshot>();
     private IScenarioStore store;
-    private NetworkSession session;
     private InputReader inputReader;
     private PlayerSnapshot[] latestSnapshots = Array.Empty<PlayerSnapshot>();
     private WaitForSeconds cacheWait;
@@ -35,23 +35,13 @@ public class ScenarioPositionRecorder : MonoBehaviour
 
     void OnEnable()
     {
-        session = NetworkSession.Instance;
-        if (session != null)
-        {
-            session.SessionEnding += OnSessionEnding;
-        }
-
+        EventManager.SubscribeTo<SessionEndingEvent>(OnSessionEnding);
         StartCoroutine(RefreshCachePeriodically());
     }
 
     void OnDisable()
     {
-        if (!ReferenceEquals(session, null))
-        {
-            session.SessionEnding -= OnSessionEnding;
-            session = null;
-        }
-
+        EventManager.UnsubscribeFrom<SessionEndingEvent>(OnSessionEnding);
         Unbind();
     }
 
@@ -85,7 +75,7 @@ public class ScenarioPositionRecorder : MonoBehaviour
         isManualSaveRunning = true;
         try
         {
-            await SaveAsync(CaptureSnapshots());
+            await SaveAsync(CaptureSnapshots(), IsLocalHost());
         }
         finally
         {
@@ -93,14 +83,21 @@ public class ScenarioPositionRecorder : MonoBehaviour
         }
     }
 
-    // NetworkSession phat truoc Shutdown -> nhan vat con; neu da bi huy thi dung ban chup gan nhat
-    private async void OnSessionEnding()
+    // Phat truoc Shutdown -> chup NGAY trong handler (nhan vat con); da bi huy thi dung ban chup gan nhat.
+    // Handler cua bus nhan ref -> khong async duoc (CS1988), viec luu chay o SaveInBackground
+    private void OnSessionEnding(ref SessionEndingEvent eventData)
     {
         PlayerSnapshot[] snapshots = CaptureSnapshots();
-        await SaveAsync(snapshots.Length > 0 ? snapshots : latestSnapshots);
+        SaveInBackground(snapshots.Length > 0 ? snapshots : latestSnapshots, eventData.IsHost);
     }
 
-    private async Task SaveAsync(PlayerSnapshot[] snapshots)
+    // async void co chu dich: diem vao bat dong bo cua handler su kien, loi khong bi nuot nhu Task bo di
+    private async void SaveInBackground(PlayerSnapshot[] snapshots, bool isLocalHost)
+    {
+        await SaveAsync(snapshots, isLocalHost);
+    }
+
+    private async Task SaveAsync(PlayerSnapshot[] snapshots, bool isLocalHost)
     {
         if (store == null)
         {
@@ -114,7 +111,7 @@ public class ScenarioPositionRecorder : MonoBehaviour
             return;
         }
 
-        string role = ScenarioData.GetRole(IsLocalHost());
+        string role = ScenarioData.GetRole(isLocalHost);
         ScenarioData data = ResolveBaseScenario().WithPlayers(role, snapshots);
         SaveResult result;
         try
@@ -191,9 +188,11 @@ public class ScenarioPositionRecorder : MonoBehaviour
         return ScenarioData.Create(DEFAULT_SCENARIO_NAME, characterId, FindCharacterName(characterId), weaponId, weaponId, DateTime.Now);
     }
 
-    private bool IsLocalHost()
+    // F5 chi co khi da Bind InputReader cua nhan vat local -> Local luon co; nhan vat cua host co OwnerClientId = server
+    private static bool IsLocalHost()
     {
-        return session != null && session.Manager != null && session.Manager.IsServer;
+        PlayerNetwork local = PlayerNetwork.Local;
+        return local != null && local.IsHostPlayer;
     }
 
     private string FindCharacterName(string characterId)

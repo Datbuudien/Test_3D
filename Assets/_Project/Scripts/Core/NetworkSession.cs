@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
@@ -28,12 +27,9 @@ public class NetworkSession : MonoBehaviour
     private bool hasRaisedEnding;
     private ConnectionStatus? forcedStopStatus;
 
-    // Ngoai le singleton duy nhat (KI-22): song xuyen scene, Setup/Gameplay khong gan Inspector toi object cua Bootstrap duoc
+    // Ngoai le singleton duy nhat (KI-22): song xuyen scene, Setup/Gameplay khong gan Inspector toi object cua Bootstrap duoc.
+    // Instance chi dung cho LENH (Start/Leave) va truy van; thong bao phat qua EventManager (KI-34)
     public static NetworkSession Instance { get; private set; }
-
-    public event Action<ConnectionStatus> StatusChanged;
-    // Phat 1 lan/phien khi nhan vat VAN CON trong scene (truoc Shutdown) -> ScenarioPositionRecorder tu luu toa do (KI-29)
-    public event Action SessionEnding;
 
     public ConnectionStatus Status { get; private set; } = ConnectionStatus.Idle;
     public string LastReason { get; private set; } = string.Empty;
@@ -283,13 +279,14 @@ public class NetworkSession : MonoBehaviour
         }
 
         hasRaisedEnding = true;
-        SessionEnding?.Invoke();
+        // RaiseImmediately: nguoi nghe phai chup toa do XONG truoc khi Shutdown huy nhan vat (KI-29)
+        EventManager.RaiseImmediately(new SessionEndingEvent(networkManager.IsServer));
     }
 
     private void SetStatus(ConnectionStatus status)
     {
         Status = status;
-        StatusChanged?.Invoke(status);
+        EventManager.Raise(new ConnectionStatusChangedEvent(status));
     }
 
     private static void LoadSetupScene()
